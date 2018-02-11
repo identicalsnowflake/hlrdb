@@ -9,6 +9,12 @@ maintainer:          identicalsnowflake@yandex.com
 category:            Database
 build-type:          Simple
 cabal-version:       >=1.10
+homepage:            https://github.com/identicalsnowflake/hlrdb
+bug-reports:         https://github.com/identicalsnowflake/hlrdb/issues
+
+source-repository head
+  type:     git
+  location: https://github.com/identicalsnowflake/hlrdb
 
 library
   exposed-modules: HLRDB
