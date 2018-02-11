@@ -5,7 +5,7 @@ description:         A library for type-driven interaction with Redis
 license:             MIT
 license-file:        LICENSE
 author:              Identical Snowflake
-maintainer:          identicalsnowflake@yandex.com
+maintainer:          identicalsnowflake@protonmail.com
 category:            Database
 build-type:          Simple
 cabal-version:       >=1.10
