@@ -19,6 +19,13 @@ module HLRDB
        , declareSet
        , declareHSet
        , declareSSet
+       , declareGlobalBasic
+       , declareGlobalIntegral
+       , declareGlobalBasicZero
+       , declareGlobalList
+       , declareGlobalSet
+       , declareGlobalHSet
+       , declareGlobalSSet
        , encodePath
        , foldPath
        ) where
@@ -105,12 +112,13 @@ identifierTimestamp i =
   let (Identifier (t,_,_,_)) = toIdentifier i in
   UnixDateTime $ offset + fromIntegral t
 
--- actual primitive redis key encoding (16 bytes total):
+-- Primitive redis key encoding scheme (16 bytes total):
+-- 
 -- 1. 5 bytes - 40-bit prefix of MD5 pathname hash;
 --              note that this is a birthday problem - prob collision = birthday (2^5) (# of path names you use)
 -- 2. 11-byte Identifier (including 32-bit timestamp)
 -- This paradigm allows the following:
--- 1. iterating all data in a particular path
+-- 1. iterating all indexes in a particular path
 -- 2. efficiently discriminating which data is fresh
 newtype PathName = PathName ByteString
 
@@ -188,6 +196,56 @@ declareSet pathName = RSet $ E (encodePath pathName) (pure . encode) (decode' . 
 {-# INLINE declareSSet #-}
 declareSSet :: (IsIdentifier i, Store v) => PathName -> Maybe SortedSetTrimScheme -> RedisSSet i v
 declareSSet pathName = RSortedSet $ E (encodePath pathName) (pure . encode) (decode' . runIdentity)
+
+-- | Unindexed (global) paths
+-- You may also declare global paths, which are indexed simply by (), rather than an Identifier newtype.
+
+{-# INLINE declareGlobalBasic #-}
+declareGlobalBasic :: (Store v) => PathName -> RedisBasic () (Maybe v)
+declareGlobalBasic (PathName p) = RKeyValue $ E (const p) (fmap encode) $ \case
+  Just bs -> case Data.Store.decode bs of
+    Left _ -> Nothing
+    Right x -> Just x
+  Nothing -> Nothing
+
+-- | A global version of @declareIntegral@
+{-# INLINE declareGlobalIntegral #-}
+declareGlobalIntegral :: (Integral b) => PathName -> RedisIntegral () b
+declareGlobalIntegral (PathName p) = RKeyValueInteger (const p) toInteger fromIntegral
+
+-- | A global version of @declareZero@
+{-# INLINE declareGlobalBasicZero #-}
+declareGlobalBasicZero :: (Store v) => PathName -> v -> RedisBasic () v
+declareGlobalBasicZero (PathName p) zero = RKeyValue $
+  E (const p)
+    (Just . encode)
+    $ \case
+       Nothing -> zero
+       Just bs -> case Data.Store.decode bs of
+         Left _ -> zero
+         Right x -> x
+
+-- | A global version of @declareList@
+{-# INLINE declareGlobalList #-}
+declareGlobalList :: (Store v) => PathName -> Maybe MaxLength -> RedisList () v
+declareGlobalList (PathName p) = RList $ E (const p) (pure . encode) (decode' . runIdentity)
+
+-- | A global version of @declareHSet@
+{-# INLINE declareGlobalHSet #-}
+declareGlobalHSet :: (Store s, Store v) => PathName -> RedisHSet () s v
+declareGlobalHSet (PathName p) =
+  RHSet (E (const p) (pure . encode) (decode' . runIdentity)) (HSET encode decode')
+
+-- | A global version of @declareSet@
+{-# INLINE declareGlobalSet #-}
+declareGlobalSet :: (Store v) => PathName -> RedisSet () v
+declareGlobalSet (PathName p) = RSet $ E (const p) (pure . encode) (decode' . runIdentity)
+
+-- | A global version of @declareSSet@
+{-# INLINE declareGlobalSSet #-}
+declareGlobalSSet :: (Store v) => PathName -> Maybe SortedSetTrimScheme -> RedisSSet () v
+declareGlobalSSet (PathName p) = RSortedSet $ E (const p) (pure . encode) (decode' . runIdentity)
+
 
 -- data expiration
 
