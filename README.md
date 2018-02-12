@@ -64,6 +64,15 @@ blockedUsers = declareSet "a user's block list"
 
 ```
 
+### Global paths
+
+You may use the global variants of the above to declare paths indexed simply on `()`, rather than an `Identifier` newtype:
+
+```haskell
+bannedUsers :: RedisSet () UserId
+bannedUsers = declareGlobalSet "global ban list"
+```
+
 Once you've declared any of the above structures, you may use the Redis monad to perform operations on them. You may find the operations available for each structure defined in the `HLRDB/Structures` folder for that particular structure. The commands are similar to the original Redis API, but have been cleaned up a bit to support more of a Haskell dialect (e.g., list commands do not crash when passed `[]` as they do in Redis).
 
 ## Lookup Aggregation
