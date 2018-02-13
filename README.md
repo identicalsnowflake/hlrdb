@@ -77,6 +77,27 @@ Once you've declared any of the above structures, you may use the Redis monad to
 
 ## Lookup Aggregation
 
-You may construct a single query using many `RedisBasic` paths, which will result in a single `mget` command being executed in Redis. This allows constructing detailed data views in an efficient manner. I've written an [in-depth article discussing this](https://identicalsnowflake.github.io/QueryAggregation.html), but the gist of it is the query is `Traversing` (from Profunctors), `Applicative`, and you may combine any two queries into a single query (i.e., it's a monoid, but not in the Haskell typeclass sense).
+You may lift `RedisBasic i v` (and `RedisIntegral i v`, which is a subtype) paths to `i ⟿ v` queries, which can be combined together in several ways, resulting in a single `mget` command being executed in Redis. This allows constructing detailed data views in an efficient manner.
 
-Note that aggregation is only available on key-value (`RedisBasic`) paths: Redis does not support looking up other data structures as part of an `mget` query.
+```haskell
+
+newtype Views = Views Integer deriving (Show,Eq,Ord,Num,Enum,Real,Integral)
+newtype Likes = Likes Integer deriving (Show,Eq,Ord,Num,Enum,Real,Integral)
+
+
+cidToViews :: RedisIntegral CommentId Views
+cidToViews = declareIntegral "comment views"
+
+cidToLikes :: RedisIntegral CommentId Likes
+cidToLikes = declareIntegral "comment likes"
+
+
+queryBoth :: CommentId ⟿ (Views , Likes)
+queryBoth = (,) <$> liftq cidToViews <*> liftq cidToLikes
+
+reifyToRedis :: CommentId -> Redis (Views , Likes)
+reifyToRedis = mget queryBoth
+
+```
+
+I've written an [in-depth article discussing aggregation here](https://identicalsnowflake.github.io/QueryAggregation.html).
