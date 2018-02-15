@@ -100,4 +100,8 @@ reifyToRedis = mget queryBoth
 
 ```
 
-I've written an [in-depth article discussing aggregation here](https://identicalsnowflake.github.io/QueryAggregation.html).
+I've written an [in-depth article discussing aggregation here](https://identicalsnowflake.github.io/QueryAggregation.html), but the two most important takeaways are that `⟿` is a `Traversing` `Profunctor` and an `Applicative`.
+
+## Demo
+
+There is a [simple demo repository](https://github.com/identicalsnowflake/hlrdb-demo) demonstrating the end-to-end process of defining data models and performing read/write actions.
