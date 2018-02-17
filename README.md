@@ -9,6 +9,35 @@ This package makes many decisions for you about how to serialize and deserialize
 
 Redis is a hash table database with several builtin primitive data structures. It does not use SQL, but instead uses [its own system of primitive commands](https://redis.io/commands). You may find primitive Haskell bindings for these commands [in the Hedis library](https://hackage.haskell.org/package/hedis), on which this library depends. HLRDB provides a type-driven, high-level abstraction on top of this.
 
+```haskell
+
+import Data.Store
+import Database.Redis (checkedConnect,defaultConnectInfo,runRedis)
+import HLRDB
+
+newtype CommentId = CommentId Identifier deriving (Eq,Ord,Show,Store,IsIdentifier)
+newtype Comment = Comment String deriving (Eq,Ord,Show,Store)
+
+cidToComment :: RedisBasic CommentId (Maybe Comment)
+cidToComment = declareBasic "canonical mapping from CommentId to Comment"
+
+main :: IO ()
+main = do
+  -- connect to Redis
+  rconn <- checkedConnect defaultConnectInfo
+
+  cid :: CommentId <- genId
+
+  c :: Maybe Comment <- runRedis rconn $ do
+    -- create a comment
+    set' cidToComment cid $ Comment "hi"
+    -- read it back
+    get cidToComment cid
+
+  print c
+
+```
+
 ## Identifiers
 
 Use newtypes for `Identifier` for your various data types:
@@ -24,7 +53,7 @@ example = genId
 
 ## Data structures
 
-Redis structures are mostly indexed by two types: their identifier and their value.
+Redis structures are mostly indexed by two types: their identifier and their value. When you declare a structure, you need to provide a unique description, which serves two purposes: first, it helps document what the purpose of the path is, and second, the hash of this string is how HLRDB distinguishes between multiple paths of the same type.
 
 ### Basic
 
@@ -43,6 +72,8 @@ threadIdToComments = declareBasicZero "reddit-style comment threads" Empty
 ```
 
 ### Other Redis structures
+
+For lists and sorted sets, you may optionally provide a trim scheme. When provided, HLRDB will automatically trim the structures in Redis to their proper size whenever data is added.
 
 ```haskell
 -- hset, basically a sub-hash table with a few extra primitive commands
@@ -73,7 +104,7 @@ bannedUsers :: RedisSet () UserId
 bannedUsers = declareGlobalSet "global ban list"
 ```
 
-Once you've declared any of the above structures, you may use the Redis monad to perform operations on them. You may find the operations available for each structure defined in the `HLRDB/Structures` folder for that particular structure. The commands are similar to the original Redis API, but have been cleaned up a bit to support more of a Haskell dialect (e.g., list commands do not crash when passed `[]` as they do in Redis).
+Once you've declared any of the above structures, you may use the Redis monad to perform operations on them. You may find the operations available for each structure defined in the [HLRDB/Structures](https://github.com/identicalsnowflake/hlrdb-core/tree/master/src/HLRDB/Structures) folder (found in hlrdb-core) for that particular structure. The commands are similar to the original Redis API, but have been cleaned up and re-imagined to support more of a Haskell dialect (e.g., list commands do not crash when passed `[]` as they do in Redis).
 
 ## Lookup Aggregation
 
