@@ -73,21 +73,20 @@ threadIdToComments = declareBasicZero "reddit-style comment threads" Empty
 
 ### Other Redis structures
 
-For lists and sorted sets, you may optionally provide a trim scheme. When provided, HLRDB will automatically trim the structures in Redis to their proper size whenever data is added.
+For lists and sorted sets, you may optionally provide a `TrimScheme` (an alias for `(MaxLength , Probability)`). When provided, HLRDB will automatically trim the structures in Redis to their proper size whenever data is added.
 
 ```haskell
 -- hset, basically a sub-hash table with a few extra primitive commands
 voteHSet :: RedisStructure (HSET CommentId) UserId Vote
 voteHSet = declareHSet "whether a user has voted a comment up or down"
 
--- list, with automatic max-length management
+-- list, with automatic max-length management with TrimScheme
 tidToComments :: RedisList ThreadId CommentId
-tidToComments = declareList "non-recursive comment threads" $ Just 1000
+tidToComments = declareList "non-recursive comment threads" $ Just (1000 , 0.1)
 
--- sorted sets are fairly complicated; they store a set of items ordered by score.
--- the second parameter expresses the trim scheme (which is more complicated than List due to Redis's API)
+-- sorted sets store items by golf score - lower is better. supports TrimScheme
 popularItems :: RedisSSet UserId PostId
-popularItems = declareSSet "popular content" $ Just (1000, Just 0.01) -- 1k max; trim with probability 0.01
+popularItems = declareSSet "popular content" $ Just (1000, 0.01) -- 1k max; trim with probability 0.01
 
 -- set is intuitive
 blockedUsers :: RedisSet UserId UserId
