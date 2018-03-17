@@ -176,9 +176,9 @@ declareBasicZero pathName zero = RKeyValue $
          Left _ -> zero
          Right x -> x
 
--- | Standard Redis list, supporting prepends, appends, and range access. If a max length is provided, operations will automatically trim the list to the specified length.
+-- | Standard Redis list, supporting prepends, appends, and range access. If a @TrimScheme@ is provided, operations will automatically trim the list to the specified length.
 {-# INLINE declareList #-}
-declareList :: (IsIdentifier i, Store v) => PathName -> Maybe MaxLength -> RedisList i v
+declareList :: (IsIdentifier i, Store v) => PathName -> Maybe TrimScheme -> RedisList i v
 declareList pathName = RList $ E (encodePath pathName) (pure . encode) (decode' . runIdentity)
 
 -- | A sub-hash table, using the sub-index type @s@. @s@ here is only required to be Storable rather than IsIdentifier, but in practice you'll probably use identifiers for @s@, too.
@@ -194,7 +194,7 @@ declareSet pathName = RSet $ E (encodePath pathName) (pure . encode) (decode' . 
 
 -- | A sorted set in Redis. You may optionally provide a trim scheme, which will automatically manage keeping the set at a maximum size for you, 
 {-# INLINE declareSSet #-}
-declareSSet :: (IsIdentifier i, Store v) => PathName -> Maybe SortedSetTrimScheme -> RedisSSet i v
+declareSSet :: (IsIdentifier i, Store v) => PathName -> Maybe TrimScheme -> RedisSSet i v
 declareSSet pathName = RSortedSet $ E (encodePath pathName) (pure . encode) (decode' . runIdentity)
 
 -- | Unindexed (global) paths
@@ -227,7 +227,7 @@ declareGlobalBasicZero (PathName p) zero = RKeyValue $
 
 -- | A global version of @declareList@
 {-# INLINE declareGlobalList #-}
-declareGlobalList :: (Store v) => PathName -> Maybe MaxLength -> RedisList () v
+declareGlobalList :: (Store v) => PathName -> Maybe TrimScheme -> RedisList () v
 declareGlobalList (PathName p) = RList $ E (const p) (pure . encode) (decode' . runIdentity)
 
 -- | A global version of @declareHSet@
@@ -243,7 +243,7 @@ declareGlobalSet (PathName p) = RSet $ E (const p) (pure . encode) (decode' . ru
 
 -- | A global version of @declareSSet@
 {-# INLINE declareGlobalSSet #-}
-declareGlobalSSet :: (Store v) => PathName -> Maybe SortedSetTrimScheme -> RedisSSet () v
+declareGlobalSSet :: (Store v) => PathName -> Maybe TrimScheme -> RedisSSet () v
 declareGlobalSSet (PathName p) = RSortedSet $ E (const p) (pure . encode) (decode' . runIdentity)
 
 
