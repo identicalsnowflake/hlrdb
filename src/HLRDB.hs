@@ -31,7 +31,7 @@ module HLRDB
        ) where
 
 import HLRDB.Core
-import HLRDB.Util
+import HLRDB.Internal
 
 import Data.Functor.Identity
 import Data.Time.Exts.Unix
