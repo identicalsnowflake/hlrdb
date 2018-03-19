@@ -10,7 +10,7 @@ This package makes many decisions for you about how to serialize and deserialize
 Redis is a hash table database with several builtin primitive data structures. It does not use SQL, but instead uses [its own system of primitive commands](https://redis.io/commands). You may find primitive Haskell bindings for these commands [in the Hedis library](https://hackage.haskell.org/package/hedis), on which this library depends. HLRDB provides a type-driven, high-level abstraction on top of this.
 
 ```haskell
-
+-- minimal end-to-end, runnable example
 import Data.Store
 import Database.Redis (checkedConnect,defaultConnectInfo,runRedis)
 import HLRDB
