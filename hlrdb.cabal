@@ -25,15 +25,12 @@ library
     , cryptonite ^>= 0.24
     , hashable ^>= 1.2.6.1
     , hedis ^>= 0.9.12
-    , hlrdb-core ^>= 0.1 && < 0.2
-    , lens ^>= 4.15.4
+    , hlrdb-core ^>= 0.1
     , memory ^>= 0.14.8
-    , profunctors ^>= 5.2.1
     , random ^>= 1.1
     , store ^>= 0.4.3.2
     , time-exts ^>= 3.0
     , unordered-containers ^>= 0.2.8.0
-    , uuid-types ^>= 1.0.3
   hs-source-dirs:      src
   default-language:    Haskell2010
   default-extensions:
