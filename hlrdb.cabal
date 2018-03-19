@@ -8,7 +8,7 @@ author:              Identical Snowflake
 maintainer:          identicalsnowflake@protonmail.com
 category:            Database
 build-type:          Simple
-cabal-version:       >=1.10
+cabal-version:       >=2.0
 homepage:            https://github.com/identicalsnowflake/hlrdb
 bug-reports:         https://github.com/identicalsnowflake/hlrdb/issues
 
@@ -19,21 +19,21 @@ source-repository head
 library
   exposed-modules: HLRDB
   build-depends:
-      base >=4.9 && <5
-    , base64-bytestring >= 1.0.0.1
-    , bytestring >= 0.10.8.1
-    , cryptonite >= 0.24
-    , hashable >= 1.2.6.1
-    , hedis >= 0.9.12
-    , hlrdb-core >= 0.1 && < 0.2
-    , lens >= 4.15.4
-    , memory >= 0.14.8
-    , profunctors >= 5.2.1
-    , random >= 1.1
-    , store >= 0.4.3.2
-    , time-exts >= 3.0
-    , unordered-containers >= 0.2.8.0
-    , uuid-types >= 1.0.3
+      base ^>= 4.9
+    , base64-bytestring ^>= 1.0.0.1
+    , bytestring ^>= 0.10.8.1
+    , cryptonite ^>= 0.24
+    , hashable ^>= 1.2.6.1
+    , hedis ^>= 0.9.12
+    , hlrdb-core ^>= 0.1 && < 0.2
+    , lens ^>= 4.15.4
+    , memory ^>= 0.14.8
+    , profunctors ^>= 5.2.1
+    , random ^>= 1.1
+    , store ^>= 0.4.3.2
+    , time-exts ^>= 3.0
+    , unordered-containers ^>= 0.2.8.0
+    , uuid-types ^>= 1.0.3
   hs-source-dirs:      src
   default-language:    Haskell2010
   default-extensions:
