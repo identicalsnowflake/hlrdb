@@ -82,11 +82,11 @@ voteHSet = declareHSet "whether a user has voted a comment up or down"
 
 -- list, with automatic max-length management with TrimScheme
 tidToComments :: RedisList ThreadId CommentId
-tidToComments = declareList "non-recursive comment threads" $ Just (1000 , 0.1)
+tidToComments = declareList "non-recursive comment threads" $ Just $ TrimScheme 1000 0.1
 
 -- sorted sets store items by golf score - lower is better. supports TrimScheme
 popularItems :: RedisSSet UserId PostId
-popularItems = declareSSet "popular content" $ Just (1000, 0.01) -- 1k max; trim with probability 0.01
+popularItems = declareSSet "popular content" $ Just $ TrimScheme 1000 0.01 -- 1k max; trim with probability 0.01
 
 -- set is intuitive
 blockedUsers :: RedisSet UserId UserId
