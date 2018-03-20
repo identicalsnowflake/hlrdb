@@ -8,7 +8,7 @@ author:              Identical Snowflake
 maintainer:          identicalsnowflake@protonmail.com
 category:            Database
 build-type:          Simple
-cabal-version:       >=2.0
+cabal-version:       2.0
 homepage:            https://github.com/identicalsnowflake/hlrdb
 bug-reports:         https://github.com/identicalsnowflake/hlrdb/issues
 
