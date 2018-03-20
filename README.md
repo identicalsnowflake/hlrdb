@@ -73,7 +73,7 @@ threadIdToComments = declareBasicZero "reddit-style comment threads" Empty
 
 ### Other Redis structures
 
-For lists and sorted sets, you may optionally provide a `TrimScheme` (an alias for `(MaxLength , Probability)`). When provided, HLRDB will automatically trim the structures in Redis to their proper size whenever data is added.
+For lists and sorted sets, you may optionally provide a `TrimScheme` (a record with two fields, `softCardinality :: Integer` and `trimProbability :: Double`). When provided, HLRDB will automatically trim the structures in Redis to their proper size whenever data is added.
 
 ```haskell
 -- hset, basically a sub-hash table with a few extra primitive commands
