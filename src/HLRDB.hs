@@ -1,4 +1,5 @@
 -- | HLRDB is an opinionated, high-level, type-driven library for modeling Redis-backed database architecture.
+-- 
 -- This package makes many decisions for you about how to serialize and deserialize values, construct identifiers, and define path names. If you want more control over these aspects, you may instead use the HLRDB Core package, which defines only the abstract API and does not opine on these matters.
 
 module HLRDB
@@ -33,7 +34,6 @@ module HLRDB
 import HLRDB.Core
 import HLRDB.Internal
 
-import Data.Functor.Identity
 import Data.Time.Exts.Unix
 import Data.Time.Exts.Base (Calendar(Gregorian))
 import Database.Redis
@@ -56,7 +56,9 @@ import Data.Hashable (Hashable)
 
 -- | Declare identifiers using newtypes for Identifier, e.g.,
 -- @newtype CommentId = CommentId Identifier deriving (Generic,Eq,Ord,IsIdentifier,Store,Hashable)@
-newtype Identifier = Identifier (Int32,Word32,Word16,Word8) deriving (Generic,Eq,Ord,Hashable)
+newtype Identifier =
+  Identifier (Int32,Word32,Word16,Word8)
+  deriving (Generic,Eq,Ord,Hashable)
 
 instance Show Identifier where
   show = show . B64.encode . encode
@@ -72,13 +74,15 @@ instance IsIdentifier Identifier where
 
 instance Store Identifier where
   size = ConstSize 11
-  peek = Identifier <$> ((,,,) <$> peek <*> peek <*> peek <*> peek)
-  poke (Identifier (a,b,c,d)) = poke a >> poke b >> poke c >> poke d
+  peek = fmap Identifier
+       $ (,,,) <$> peek <*> peek <*> peek <*> peek
+  poke (Identifier (a,b,c,d)) =
+    poke a >> poke b >> poke c >> poke d
 
 
 -- | Generate a new identifier using the current time as the timestamp
 {-# INLINE genId #-}
-genId :: (IsIdentifier a) => IO a
+genId :: IsIdentifier a => IO a
 genId = getCurrentUnixDateTime >>= genId'
 
 -- use an offset to make 32-bit timestamps last another 100 years
@@ -87,7 +91,7 @@ offset :: Int64
 offset = 2524608000 -- January 1, 2050
 
 -- | Generate a new identifier for the given timestamp
-genId' :: (IsIdentifier a) => UnixDateTime 'Gregorian -> IO a
+genId' :: IsIdentifier a => UnixDateTime 'Gregorian -> IO a
 genId' (UnixDateTime i64) = do
   let t :: Int32 = fromIntegral (i64 - offset)
   w64 :: Word64 <- randomIO
@@ -107,7 +111,7 @@ genId' (UnixDateTime i64) = do
 
 -- | Extract the timestamp from an identifier
 {-# INLINABLE identifierTimestamp #-}
-identifierTimestamp :: (IsIdentifier a) => a -> (UnixDateTime 'Gregorian)
+identifierTimestamp :: IsIdentifier a => a -> UnixDateTime 'Gregorian
 identifierTimestamp i =
   let (Identifier (t,_,_,_)) = toIdentifier i in
   UnixDateTime $ offset + fromIntegral t
@@ -134,7 +138,6 @@ encodePath :: (IsIdentifier a) => PathName -> a -> ByteString
 encodePath (PathName n) =
   (<>) n . encode . toIdentifier
 
-
 failDecode :: PeekException -> a
 failDecode e = error $ "Unexpected data encoding from Redis: " <> show e
 
@@ -153,16 +156,16 @@ declareBasic :: (IsIdentifier i, Store v) => PathName -> RedisBasic i (Maybe v)
 declareBasic pathName = RKeyValue $
   E (encodePath pathName)
     (fmap encode)
-    $ \case
-      Just bs -> case Data.Store.decode bs of
-        Left _ -> Nothing
-        Right x -> Just x
-      Nothing -> Nothing
+    . (=<<)
+    . flip (.) Data.Store.decode $ \case
+      Left _ -> Nothing
+      Right x -> Just x
 
 -- | Standard key-value store, but backed by a primitive integer in Redis, enabling extra commands like @incr@
 {-# INLINE declareIntegral #-}
 declareIntegral :: (IsIdentifier i, Integral b) => PathName -> RedisIntegral i b
-declareIntegral p = RKeyValueInteger (encodePath p) toInteger fromIntegral
+declareIntegral p =
+  RKeyValueInteger (encodePath p) toInteger fromIntegral
 
 -- | Allows defining your own "zero" value. An example might be RoseTree, where a non-existant value in Redis can be mapped to a sensible empty value in Haskell.
 {-# INLINE declareBasicZero #-}
@@ -190,18 +193,20 @@ declareHSet pathName =
 -- | A set in Redis. Note that your Haskell Eq should respect the equality via Serialize, since Redis set operations will be operating on the binary equality, not your Haskell Eq instance.
 {-# INLINE declareSet #-}
 declareSet :: (IsIdentifier i, Store v) => PathName -> RedisSet i v
-declareSet pathName = RSet $ E (encodePath pathName) (pure . encode) (decode' . runIdentity)
+declareSet pathName =
+  RSet $ E (encodePath pathName) (pure . encode) (decode' . runIdentity)
 
 -- | A sorted set in Redis. You may optionally provide a trim scheme, which will automatically manage keeping the set at a maximum size for you, 
 {-# INLINE declareSSet #-}
 declareSSet :: (IsIdentifier i, Store v) => PathName -> Maybe TrimScheme -> RedisSSet i v
-declareSSet pathName = RSortedSet $ E (encodePath pathName) (pure . encode) (decode' . runIdentity)
+declareSSet pathName =
+  RSortedSet $ E (encodePath pathName) (pure . encode) (decode' . runIdentity)
 
 -- | Unindexed (global) paths
 -- You may also declare global paths, which are indexed simply by (), rather than an Identifier newtype.
 
 {-# INLINE declareGlobalBasic #-}
-declareGlobalBasic :: (Store v) => PathName -> RedisBasic () (Maybe v)
+declareGlobalBasic :: Store v => PathName -> RedisBasic () (Maybe v)
 declareGlobalBasic (PathName p) = RKeyValue $ E (const p) (fmap encode) $ \case
   Just bs -> case Data.Store.decode bs of
     Left _ -> Nothing
@@ -210,12 +215,12 @@ declareGlobalBasic (PathName p) = RKeyValue $ E (const p) (fmap encode) $ \case
 
 -- | A global version of @declareIntegral@
 {-# INLINE declareGlobalIntegral #-}
-declareGlobalIntegral :: (Integral b) => PathName -> RedisIntegral () b
+declareGlobalIntegral :: Integral b => PathName -> RedisIntegral () b
 declareGlobalIntegral (PathName p) = RKeyValueInteger (const p) toInteger fromIntegral
 
 -- | A global version of @declareZero@
 {-# INLINE declareGlobalBasicZero #-}
-declareGlobalBasicZero :: (Store v) => PathName -> v -> RedisBasic () v
+declareGlobalBasicZero :: Store v => PathName -> v -> RedisBasic () v
 declareGlobalBasicZero (PathName p) zero = RKeyValue $
   E (const p)
     (Just . encode)
@@ -227,40 +232,42 @@ declareGlobalBasicZero (PathName p) zero = RKeyValue $
 
 -- | A global version of @declareList@
 {-# INLINE declareGlobalList #-}
-declareGlobalList :: (Store v) => PathName -> Maybe TrimScheme -> RedisList () v
+declareGlobalList :: Store v => PathName -> Maybe TrimScheme -> RedisList () v
 declareGlobalList (PathName p) = RList $ E (const p) (pure . encode) (decode' . runIdentity)
 
 -- | A global version of @declareHSet@
 {-# INLINE declareGlobalHSet #-}
-declareGlobalHSet :: (Store s, Store v) => PathName -> RedisHSet () s v
+declareGlobalHSet :: (Store s , Store v) => PathName -> RedisHSet () s v
 declareGlobalHSet (PathName p) =
   RHSet (E (const p) (pure . encode) (decode' . runIdentity)) (HSET encode decode')
 
 -- | A global version of @declareSet@
 {-# INLINE declareGlobalSet #-}
-declareGlobalSet :: (Store v) => PathName -> RedisSet () v
-declareGlobalSet (PathName p) = RSet $ E (const p) (pure . encode) (decode' . runIdentity)
+declareGlobalSet :: Store v => PathName -> RedisSet () v
+declareGlobalSet (PathName p) =
+  RSet $ E (const p) (pure . encode) (decode' . runIdentity)
 
 -- | A global version of @declareSSet@
 {-# INLINE declareGlobalSSet #-}
-declareGlobalSSet :: (Store v) => PathName -> Maybe TrimScheme -> RedisSSet () v
-declareGlobalSSet (PathName p) = RSortedSet $ E (const p) (pure . encode) (decode' . runIdentity)
+declareGlobalSSet :: Store v => PathName -> Maybe TrimScheme -> RedisSSet () v
+declareGlobalSSet (PathName p) =
+  RSortedSet $ E (const p) (pure . encode) (decode' . runIdentity)
 
 
 -- data expiration
 
 type Seconds = Integer
 
-setExpireIn :: RedisStructure v a b -> a -> Seconds -> Redis ()
-setExpireIn p k = ignore . expire (primKey p k)
+setExpireIn :: MonadRedis m => RedisStructure v a b -> a -> Seconds -> m ()
+setExpireIn p k = liftRedis . ignore . expire (primKey p k)
 
-setExpireAt :: RedisStructure v a b -> a -> UnixDateTime 'Gregorian -> Redis ()
-setExpireAt p k (UnixDateTime t) = ignore $ expireat (primKey p k) (toInteger t)
+setExpireAt :: MonadRedis m => RedisStructure v a b -> a -> UnixDateTime 'Gregorian -> m ()
+setExpireAt p k (UnixDateTime t) = liftRedis $ ignore $ expireat (primKey p k) (toInteger t)
 
 -- | Generic iteration
 -- Note that despite the pretty type signature, the actual implementation in Redis is slow (it uses the global scan command, so its run time is proportional to the number of total keys in Redis, *not* the number of keys specifically related to the given path). You should only use @foldPath@ for administrative tasks, and never for any public API.
 
-scanGlob :: (IsIdentifier i) => RedisStructure s i v -> ByteString
+scanGlob :: IsIdentifier i => RedisStructure s i v -> ByteString
 scanGlob = pathGlob . extractPathName
   where
     pathGlob :: ByteString -> ByteString
@@ -282,7 +289,7 @@ scanGlob = pathGlob . extractPathName
         zeroIdentifier :: (IsIdentifier i) => i
         zeroIdentifier = fromIdentifier $ Identifier (0,0,0,0)
 
-foldPath :: (IsIdentifier i, Store v) => RedisStructure s i v -> (a -> i -> Redis a) -> a -> Redis a
+foldPath :: (MonadRedis m , IsIdentifier i , Store v) => RedisStructure s i v -> (a -> i -> m a) -> a -> m a
 foldPath p f z = go (cursor0,z)
   where
     go (c,a) = do
