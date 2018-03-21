@@ -1,18 +1,52 @@
 -- | HLRDB is an opinionated, high-level, type-driven library for modeling Redis-backed database architecture.
 -- 
--- This package makes many decisions for you about how to serialize and deserialize values, construct identifiers, and define path names. If you want more control over these aspects, you may instead use the HLRDB Core package, which defines only the abstract API and does not opine on these matters.
+-- This package provides an easy API for you to declare your data paths in Redis, but in doing so makes many decisions for you about how to serialize and deserialize values, construct identifiers, and define path names. If you want more control over these aspects, you may instead use the HLRDB Core package, which simply defines the commands and the abstract API without opining on these matters.
+--
+-- There is a <https://github.com/identicalsnowflake/hlrdb-demo simple demo project> that shows how to get started.
+--
+-- Finally, make sure that your Eq instances always respect the induced equality via Store serialization, since obviously Redis commands will be comparing serialized values.
+-- 
+-- = Minimal example
+-- @
+-- import Data.Store
+-- import Database.Redis (checkedConnect,defaultConnectInfo,runRedis)
+-- import HLRDB
+-- 
+-- newtype CommentId = CommentId Identifier deriving (Eq,Ord,Show,Store,IsIdentifier)
+-- newtype Comment = Comment String deriving (Eq,Ord,Show,Store)
+-- 
+-- cidToComment :: RedisBasic CommentId (Maybe Comment)
+-- cidToComment = declareBasic "canonical mapping from CommentId to Comment"
+-- 
+-- main :: IO ()
+-- main = do
+--   -- connect to Redis
+--   rconn <- checkedConnect defaultConnectInfo
+-- 
+--   cid :: CommentId <- genId
+-- 
+--   c :: Maybe Comment <- runRedis rconn $ do
+--     -- create a comment
+--     set' cidToComment cid $ Comment "hi"
+--     -- read it back
+--     get cidToComment cid
+-- 
+--   print c
+-- @
+-- 
+-- = Commands
+-- The commands are located in the core package.
+--
 
 module HLRDB
        (
-         module HLRDB.Core
-       , setExpireIn
-       , setExpireAt
-       , Identifier
+         -- * Identifiers
+         Identifier
        , IsIdentifier(..)
-       , Store
        , genId
        , genId'
        , identifierTimestamp
+         -- * Indexed path declaration
        , declareBasic
        , declareIntegral
        , declareBasicZero
@@ -20,6 +54,7 @@ module HLRDB
        , declareSet
        , declareHSet
        , declareSSet
+         -- * Global path declaration
        , declareGlobalBasic
        , declareGlobalIntegral
        , declareGlobalBasicZero
@@ -27,8 +62,13 @@ module HLRDB
        , declareGlobalSet
        , declareGlobalHSet
        , declareGlobalSSet
+         -- * Other commands
+       , setExpireIn
+       , setExpireAt
        , encodePath
        , foldPath
+       , Store
+       , module HLRDB.Core
        ) where
 
 import HLRDB.Core
@@ -54,8 +94,19 @@ import qualified Data.ByteString.Base64 as B64
 import Data.Hashable (Hashable)
 
 
--- | Declare identifiers using newtypes for Identifier, e.g.,
--- @newtype CommentId = CommentId Identifier deriving (Generic,Eq,Ord,IsIdentifier,Store,Hashable)@
+-- | Use the following newtype pattern to declare your identifiers
+-- 
+-- @
+-- newtype CommentId = CommentId Identifier deriving (Eq,Ord,Show,Store,IsIdentifier)
+-- @
+-- 
+-- You may generate a new random identifier using @genId@
+-- 
+-- @
+-- example :: IO CommentId
+-- example = genId
+-- @
+-- 
 newtype Identifier =
   Identifier (Int32,Word32,Word16,Word8)
   deriving (Generic,Eq,Ord,Hashable)
@@ -63,7 +114,7 @@ newtype Identifier =
 instance Show Identifier where
   show = show . B64.encode . encode
 
--- | IsIdentifier means that @a@ is isomorphic to Identifier, usually via newtype. This enables to use @genId :: (IsIdentifier a) => IO a@, declared below. It is required that not only is it isomorphic; it must respect the Store instance as well (you get this for free with a newtype anyway).
+-- | IsIdentifier means that @a@ is isomorphic to Identifier, usually via newtype. This enables to use @genId :: IsIdentifier a => IO a@, declared below. It is required that not only is it isomorphic; it must respect the Store instance as well (you get this for free with a newtype anyway).
 class IsIdentifier a where
   toIdentifier :: a -> Identifier
   fromIdentifier :: Identifier -> a
@@ -134,7 +185,8 @@ instance IsString PathName where
     . (H.hashUpdate (H.hashInit :: H.Context H.MD5) :: ByteString -> H.Context H.MD5)
     . fromString
 
-encodePath :: (IsIdentifier a) => PathName -> a -> ByteString
+-- | If for some reason you need the actual, raw key name (which you may use with the low-level commands in hedis), you may obtain it via @encodePath@.
+encodePath :: IsIdentifier a => PathName -> a -> ByteString
 encodePath (PathName n) =
   (<>) n . encode . toIdentifier
 
@@ -143,14 +195,20 @@ failDecode e = error $ "Unexpected data encoding from Redis: " <> show e
 
 -- there should never be an incorrect encoding stored in Redis
 {-# INLINE decode' #-}
-decode' :: (Store a) => ByteString -> a
+decode' :: Store a => ByteString -> a
 decode' bs = case Data.Store.decode bs of
   Left e -> failDecode e
   Right a -> a
 
 -- structure declaration API
 
--- | Standard key-value store in Redis
+-- | Declare your paths by choosing the declaration for the Redis structure you want to use. You must provide a unique description, which not only serves to document your architecture, but the hash of which is used to distinguish between otherwise identical paths of the same type.
+--
+-- @
+-- cidToComment :: RedisBasic CommentId (Maybe Comment)
+-- cidToComment = declareBasic "canonical mapping from CommentId to Comment"
+-- @
+-- 
 {-# INLINE declareBasic #-}
 declareBasic :: (IsIdentifier i, Store v) => PathName -> RedisBasic i (Maybe v)
 declareBasic pathName = RKeyValue $
@@ -190,21 +248,19 @@ declareHSet :: (IsIdentifier i, Store s, Store v) => PathName -> RedisHSet i s v
 declareHSet pathName =
   RHSet (E (encodePath pathName) (pure . encode) (decode' . runIdentity)) (HSET encode decode')
 
--- | A set in Redis. Note that your Haskell Eq should respect the equality via Serialize, since Redis set operations will be operating on the binary equality, not your Haskell Eq instance.
+-- | A set in Redis.
 {-# INLINE declareSet #-}
 declareSet :: (IsIdentifier i, Store v) => PathName -> RedisSet i v
 declareSet pathName =
   RSet $ E (encodePath pathName) (pure . encode) (decode' . runIdentity)
 
--- | A sorted set in Redis. You may optionally provide a trim scheme, which will automatically manage keeping the set at a maximum size for you, 
+-- | A sorted set in Redis. You may optionally provide a trim scheme, which will automatically manage the sorted set's size for you.
 {-# INLINE declareSSet #-}
 declareSSet :: (IsIdentifier i, Store v) => PathName -> Maybe TrimScheme -> RedisSSet i v
 declareSSet pathName =
   RSortedSet $ E (encodePath pathName) (pure . encode) (decode' . runIdentity)
 
--- | Unindexed (global) paths
--- You may also declare global paths, which are indexed simply by (), rather than an Identifier newtype.
-
+-- | A global version of @declareBasic@
 {-# INLINE declareGlobalBasic #-}
 declareGlobalBasic :: Store v => PathName -> RedisBasic () (Maybe v)
 declareGlobalBasic (PathName p) = RKeyValue $ E (const p) (fmap encode) $ \case
@@ -254,18 +310,13 @@ declareGlobalSSet (PathName p) =
   RSortedSet $ E (const p) (pure . encode) (decode' . runIdentity)
 
 
--- data expiration
-
-type Seconds = Integer
-
-setExpireIn :: MonadRedis m => RedisStructure v a b -> a -> Seconds -> m ()
+-- | Expire after a given amount of time (in seconds)
+setExpireIn :: MonadRedis m => RedisStructure v a b -> a -> Integer -> m ()
 setExpireIn p k = liftRedis . ignore . expire (primKey p k)
 
+-- | Expire at a given timestamp
 setExpireAt :: MonadRedis m => RedisStructure v a b -> a -> UnixDateTime 'Gregorian -> m ()
 setExpireAt p k (UnixDateTime t) = liftRedis $ ignore $ expireat (primKey p k) (toInteger t)
-
--- | Generic iteration
--- Note that despite the pretty type signature, the actual implementation in Redis is slow (it uses the global scan command, so its run time is proportional to the number of total keys in Redis, *not* the number of keys specifically related to the given path). You should only use @foldPath@ for administrative tasks, and never for any public API.
 
 scanGlob :: IsIdentifier i => RedisStructure s i v -> ByteString
 scanGlob = pathGlob . extractPathName
@@ -288,6 +339,8 @@ scanGlob = pathGlob . extractPathName
       where
         zeroIdentifier :: (IsIdentifier i) => i
         zeroIdentifier = fromIdentifier $ Identifier (0,0,0,0)
+
+-- | Note that despite the pretty type signature, the actual implementation of @foldPath@ in Redis is slow (it uses the global scan command, so its run time is proportional to the number of total keys in Redis, *not* the number of keys specifically related to the given path). You should only use @foldPath@ for administrative tasks, and never for any public API.
 
 foldPath :: (MonadRedis m , IsIdentifier i , Store v) => RedisStructure s i v -> (a -> i -> m a) -> a -> m a
 foldPath p f z = go (cursor0,z)
