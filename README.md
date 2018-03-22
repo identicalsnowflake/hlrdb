@@ -108,6 +108,8 @@ Once you've declared any of the above structures, you may use the Redis monad to
 
 You may lift `RedisBasic i v` (and `RedisIntegral i v`, which is a subtype) paths to `i ⟿ v` queries, which can be combined together in several ways, resulting in a single `mget` command being executed in Redis. This allows constructing detailed data views in an efficient manner.
 
+If you prefer, `Query i v` is a non-infix alias for `i ⟿ v`. You may also use the ASCII version, `~~>`.
+
 ```haskell
 
 newtype Views = Views Integer deriving (Show,Eq,Ord,Num,Enum,Real,Integral)
