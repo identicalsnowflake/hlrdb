@@ -2,8 +2,7 @@
 
 HLRDB is an opinionated, high-level, type-driven library for modeling Redis-backed database architecture.
 
-This package makes many decisions for you about how to serialize and deserialize values, construct identifiers, and define path names. If you want more control over these aspects, you may instead use the HLRDB Core package, which defines only the abstract API and does not opine on these matters.
-
+This package provides an easy API for you to declare your data paths in Redis, but in doing so makes many decisions for you about how to serialize and deserialize values, construct identifiers, and define path names. If you want more control over these aspects, you may instead use the HLRDB Core package, which simply defines the commands and the abstract API without opining on these matters.
 
 ## Overview
 

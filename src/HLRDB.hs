@@ -63,8 +63,6 @@ module HLRDB
        , declareGlobalHSet
        , declareGlobalSSet
          -- * Other commands
-       , setExpireIn
-       , setExpireAt
        , encodePath
        , foldPath
        , Store
@@ -73,10 +71,9 @@ module HLRDB
 
 import HLRDB.Core
 import HLRDB.Internal
-
-import Data.Time.Exts.Unix
-import Data.Time.Exts.Base (Calendar(Gregorian))
 import Database.Redis
+import Data.Time
+import Data.Time.Clock.POSIX
 import GHC.Int
 import GHC.Generics
 import Data.String (IsString(fromString))
@@ -134,7 +131,7 @@ instance Store Identifier where
 -- | Generate a new identifier using the current time as the timestamp
 {-# INLINE genId #-}
 genId :: IsIdentifier a => IO a
-genId = getCurrentUnixDateTime >>= genId'
+genId = getPOSIXTime >>= genIdPOSIX
 
 -- use an offset to make 32-bit timestamps last another 100 years
 {-# INLINE offset #-}
@@ -142,9 +139,13 @@ offset :: Int64
 offset = 2524608000 -- January 1, 2050
 
 -- | Generate a new identifier for the given timestamp
-genId' :: IsIdentifier a => UnixDateTime 'Gregorian -> IO a
-genId' (UnixDateTime i64) = do
-  let t :: Int32 = fromIntegral (i64 - offset)
+genId' :: IsIdentifier a => UTCTime -> IO a
+genId' =
+  genIdPOSIX . utcTimeToPOSIXSeconds
+
+genIdPOSIX :: IsIdentifier a => POSIXTime -> IO a
+genIdPOSIX posix = do
+  let t :: Int32 = fromIntegral (round posix - offset)
   w64 :: Word64 <- randomIO
   let (a,w32) = w64tow32w32 w64
   let (b,x) = w32tow16w16 w32
@@ -162,10 +163,10 @@ genId' (UnixDateTime i64) = do
 
 -- | Extract the timestamp from an identifier
 {-# INLINABLE identifierTimestamp #-}
-identifierTimestamp :: IsIdentifier a => a -> UnixDateTime 'Gregorian
+identifierTimestamp :: IsIdentifier a => a -> UTCTime
 identifierTimestamp i =
   let (Identifier (t,_,_,_)) = toIdentifier i in
-  UnixDateTime $ offset + fromIntegral t
+  posixSecondsToUTCTime $ fromIntegral $ offset + fromIntegral t
 
 -- Primitive redis key encoding scheme (16 bytes total):
 -- 
@@ -308,15 +309,6 @@ declareGlobalSet (PathName p) =
 declareGlobalSSet :: Store v => PathName -> Maybe TrimScheme -> RedisSSet () v
 declareGlobalSSet (PathName p) =
   RSortedSet $ E (const p) (pure . encode) (decode' . runIdentity)
-
-
--- | Expire after a given amount of time (in seconds)
-setExpireIn :: MonadRedis m => RedisStructure v a b -> a -> Integer -> m ()
-setExpireIn p k = liftRedis . ignore . expire (primKey p k)
-
--- | Expire at a given timestamp
-setExpireAt :: MonadRedis m => RedisStructure v a b -> a -> UnixDateTime 'Gregorian -> m ()
-setExpireAt p k (UnixDateTime t) = liftRedis $ ignore $ expireat (primKey p k) (toInteger t)
 
 scanGlob :: IsIdentifier i => RedisStructure s i v -> ByteString
 scanGlob = pathGlob . extractPathName
