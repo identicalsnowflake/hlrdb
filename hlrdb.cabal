@@ -25,7 +25,7 @@ library
     , cryptonite ^>= 0.24
     , hashable ^>= 1.2.6.1
     , hedis ^>= 0.10.1
-    , hlrdb-core ^>= 0.1
+    , hlrdb-core ^>= 0.1.1
     , memory ^>= 0.14.8
     , random ^>= 1.1
     , store ^>= 0.4.3.2
