@@ -187,9 +187,9 @@ instance IsString PathName where
     . fromString
 
 -- | If for some reason you need the actual, raw key name (which you may use with the low-level commands in hedis), you may obtain it via @encodePath@.
-encodePath :: IsIdentifier a => PathName -> a -> ByteString
+encodePath :: Store a => PathName -> a -> ByteString
 encodePath (PathName n) =
-  (<>) n . encode . toIdentifier
+  (<>) n . encode
 
 failDecode :: PeekException -> a
 failDecode e = error $ "Unexpected data encoding from Redis: " <> show e
@@ -211,7 +211,7 @@ decode' bs = case Data.Store.decode bs of
 -- @
 -- 
 {-# INLINE declareBasic #-}
-declareBasic :: (IsIdentifier i, Store v) => PathName -> RedisBasic i (Maybe v)
+declareBasic :: (Store i, Store v) => PathName -> RedisBasic i (Maybe v)
 declareBasic pathName = RKeyValue $
   E (encodePath pathName)
     (fmap encode)
@@ -222,13 +222,13 @@ declareBasic pathName = RKeyValue $
 
 -- | Standard key-value store, but backed by a primitive integer in Redis, enabling extra commands like @incr@
 {-# INLINE declareIntegral #-}
-declareIntegral :: (IsIdentifier i, Integral b) => PathName -> RedisIntegral i b
+declareIntegral :: (Store i, Integral b) => PathName -> RedisIntegral i b
 declareIntegral p =
   RKeyValueInteger (encodePath p) toInteger fromIntegral
 
 -- | Allows defining your own "zero" value. An example might be RoseTree, where a non-existant value in Redis can be mapped to a sensible empty value in Haskell.
 {-# INLINE declareBasicZero #-}
-declareBasicZero :: (IsIdentifier i, Store v) => PathName -> v -> RedisBasic i v
+declareBasicZero :: (Store i, Store v) => PathName -> v -> RedisBasic i v
 declareBasicZero pathName zero = RKeyValue $
   E (encodePath pathName)
     (Just . encode)
@@ -240,24 +240,24 @@ declareBasicZero pathName zero = RKeyValue $
 
 -- | Standard Redis list, supporting prepends, appends, and range access. If a @TrimScheme@ is provided, operations will automatically trim the list to the specified length.
 {-# INLINE declareList #-}
-declareList :: (IsIdentifier i, Store v) => PathName -> Maybe TrimScheme -> RedisList i v
+declareList :: (Store i, Store v) => PathName -> Maybe TrimScheme -> RedisList i v
 declareList pathName = RList $ E (encodePath pathName) (pure . encode) (decode' . runIdentity)
 
 -- | A sub-hash table, using the sub-index type @s@. @s@ here is only required to be Storable rather than IsIdentifier, but in practice you'll probably use identifiers for @s@, too.
 {-# INLINE declareHSet #-}
-declareHSet :: (IsIdentifier i, Store s, Store v) => PathName -> RedisHSet i s v
+declareHSet :: (Store i, Store s, Store v) => PathName -> RedisHSet i s v
 declareHSet pathName =
   RHSet (E (encodePath pathName) (pure . encode) (decode' . runIdentity)) (HSET encode decode')
 
 -- | A set in Redis.
 {-# INLINE declareSet #-}
-declareSet :: (IsIdentifier i, Store v) => PathName -> RedisSet i v
+declareSet :: (Store i, Store v) => PathName -> RedisSet i v
 declareSet pathName =
   RSet $ E (encodePath pathName) (pure . encode) (decode' . runIdentity)
 
 -- | A sorted set in Redis. You may optionally provide a trim scheme, which will automatically manage the sorted set's size for you.
 {-# INLINE declareSSet #-}
-declareSSet :: (IsIdentifier i, Store v) => PathName -> Maybe TrimScheme -> RedisSSet i v
+declareSSet :: (Store i, Store v) => PathName -> Maybe TrimScheme -> RedisSSet i v
 declareSSet pathName =
   RSortedSet $ E (encodePath pathName) (pure . encode) (decode' . runIdentity)
 
@@ -332,7 +332,7 @@ scanGlob = pathGlob . extractPathName
         zeroIdentifier :: (IsIdentifier i) => i
         zeroIdentifier = fromIdentifier $ Identifier (0,0,0,0)
 
--- | Note that despite the pretty type signature, the actual implementation of @foldPath@ in Redis is slow (it uses the global scan command, so its run time is proportional to the number of total keys in Redis, *not* the number of keys specifically related to the given path). You should only use @foldPath@ for administrative tasks, and never for any public API.
+-- | Note that despite the pretty type signature, the actual implementation of @foldPath@ in Redis is slow (it uses the global scan command, so its run time is proportional to the number of total keys in Redis, *not* the number of keys specifically related to the given path). You should only use @foldPath@ for administrative tasks, and never for any public API. Further, this method is only guaranteed to work if you've declared your @RedisStructure@s using the declarative tools in this module: if you declared a path yourself, please ensure it is compatible with the pathing convention in this module (namely, a 5-byte prefix).
 
 foldPath :: (MonadRedis m , IsIdentifier i , Store v) => RedisStructure s i v -> (a -> i -> m a) -> a -> m a
 foldPath p f z = go (cursor0,z)
