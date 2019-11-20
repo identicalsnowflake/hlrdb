@@ -1,3 +1,6 @@
+# New in 0.3
+- Generalized path declarations to any `Store` from `IsIdentifier`.
+
 # New in 0.2
 
 - Core dependency bumped to 0.1.1
