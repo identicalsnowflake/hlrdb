@@ -1,3 +1,6 @@
+# New in 0.3.1
+- Support path declaration of new `RedisByteString` primitive in core.
+
 # New in 0.3
 - Generalized path declarations to any `Store` from `IsIdentifier`.
 

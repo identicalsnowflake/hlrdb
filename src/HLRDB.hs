@@ -39,8 +39,7 @@
 --
 
 module HLRDB
-       (
-         -- * Identifiers
+       ( -- * Identifiers
          Identifier
        , IsIdentifier(..)
        , genId
@@ -49,6 +48,7 @@ module HLRDB
          -- * Indexed path declaration
        , declareBasic
        , declareIntegral
+       , declareByteString
        , declareBasicZero
        , declareList
        , declareSet
@@ -57,6 +57,7 @@ module HLRDB
          -- * Global path declaration
        , declareGlobalBasic
        , declareGlobalIntegral
+       , declareGlobalByteString
        , declareGlobalBasicZero
        , declareGlobalList
        , declareGlobalSet
@@ -226,6 +227,12 @@ declareIntegral :: (Store i, Integral b) => PathName -> RedisIntegral i b
 declareIntegral p =
   RKeyValueInteger (encodePath p) toInteger fromIntegral
 
+-- | Standard key-value store, but backed by no encoding, thus permitting bitwise operations like @getrange@, @setrange@, @getbit@, and @setbit@.
+{-# INLINE declareByteString #-}
+declareByteString :: Store i => PathName -> RedisByteString i ByteString
+declareByteString p =
+  RKeyValueByteString (encodePath p)
+
 -- | Allows defining your own "zero" value. An example might be RoseTree, where a non-existant value in Redis can be mapped to a sensible empty value in Haskell.
 {-# INLINE declareBasicZero #-}
 declareBasicZero :: (Store i, Store v) => PathName -> v -> RedisBasic i v
@@ -274,6 +281,11 @@ declareGlobalBasic (PathName p) = RKeyValue $ E (const p) (fmap encode) $ \case
 {-# INLINE declareGlobalIntegral #-}
 declareGlobalIntegral :: Integral b => PathName -> RedisIntegral () b
 declareGlobalIntegral (PathName p) = RKeyValueInteger (const p) toInteger fromIntegral
+
+-- | A global version of @declareByteString@
+{-# INLINE declareGlobalByteString #-}
+declareGlobalByteString :: PathName -> RedisByteString () ByteString
+declareGlobalByteString (PathName p) = RKeyValueByteString (const p)
 
 -- | A global version of @declareZero@
 {-# INLINE declareGlobalBasicZero #-}
