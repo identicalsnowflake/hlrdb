@@ -1,3 +1,6 @@
+# New in 0.3.2
+- Added `zstd`, which when used transparently applies zstd compression to the values stored at the given path.
+
 # New in 0.3.1
 - Support path declaration of new `RedisByteString` primitive in core.
 

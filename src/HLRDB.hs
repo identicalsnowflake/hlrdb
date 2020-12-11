@@ -66,30 +66,32 @@ module HLRDB
          -- * Other commands
        , encodePath
        , foldPath
+       , zstd
        , Store
        , module HLRDB.Core
        ) where
 
-import HLRDB.Core
-import HLRDB.Internal
-import Database.Redis
-import Data.Time
-import Data.Time.Clock.POSIX
-import GHC.Int
-import GHC.Generics
-import Data.String (IsString(fromString))
-import Data.Store
-import Data.ByteString (ByteString,take,drop,unpack)
-import qualified Data.ByteString
-import qualified Crypto.Hash as H
-import qualified Data.ByteArray as H
-import Data.Monoid ((<>))
-import System.Random
-import GHC.Word
-import Data.Bits
+import qualified Codec.Compression.Zstd as Z
 import Control.Monad
+import qualified Crypto.Hash as H
+import Data.Bits
+import qualified Data.ByteArray as H
+import qualified Data.ByteString
+import Data.ByteString (ByteString,take,drop,unpack)
 import qualified Data.ByteString.Base64 as B64
 import Data.Hashable (Hashable)
+import Data.Monoid ((<>))
+import Data.String (IsString(fromString))
+import Data.Store
+import Data.Time
+import Data.Time.Clock.POSIX
+import Database.Redis
+import GHC.Int
+import GHC.Generics
+import GHC.Word
+import HLRDB.Core
+import HLRDB.Internal
+import System.Random
 
 
 -- | Use the following newtype pattern to declare your identifiers
@@ -244,6 +246,34 @@ declareBasicZero pathName zero = RKeyValue $
        Just bs -> case Data.Store.decode bs of
          Left _ -> zero
          Right x -> x
+
+{-# INLINE zstd #-}
+-- | Transparently compress values before storage using zstd at the specified compression level and optional compression dictionary.
+zstd :: Maybe Z.Dict -> Int -> RedisStructure v a b -> RedisStructure v a b
+zstd = \md cl -> do
+  let cmp = cmpr md cl
+      dcp = dcmpr md
+  \case
+    RKeyValue (E e enc dec) -> RKeyValue (E e (fmap cmp . enc) (dec . fmap dcp))
+    RKeyValueInteger e enc dec -> RKeyValueInteger e enc dec
+    RKeyValueByteString e -> RKeyValueByteString e
+    RList (E e enc dec) ts -> RList (E e (fmap cmp . enc) (dec . fmap dcp)) ts
+    RHSet e (HSET enc dec) -> RHSet e (HSET (cmp . enc) (dec . dcp))
+    RSet (E e enc dec) -> RSet (E e (fmap cmp . enc) (dec . fmap dcp))
+    RSortedSet (E e enc dec) ts -> RSortedSet (E e (fmap cmp . enc) (dec . fmap dcp)) ts
+  where
+    cmpr :: Maybe Z.Dict -> Int -> ByteString -> ByteString
+    cmpr (Just d) cl = Z.compressUsingDict d cl
+    cmpr Nothing cl = Z.compress cl
+    
+    dcmpr :: Maybe Z.Dict -> ByteString -> ByteString
+    dcmpr Nothing = f . Z.decompress
+    dcmpr (Just d) = f . Z.decompressUsingDict d
+
+    f :: Z.Decompress -> ByteString
+    f (Z.Decompress r) = r
+    f Z.Skip = ""
+    f (Z.Error e) = error $ "Invalid zstd compression: " <> show e
 
 -- | Standard Redis list, supporting prepends, appends, and range access. If a @TrimScheme@ is provided, operations will automatically trim the list to the specified length.
 {-# INLINE declareList #-}
