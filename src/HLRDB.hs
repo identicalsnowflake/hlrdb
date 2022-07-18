@@ -80,7 +80,6 @@ import qualified Data.ByteString
 import Data.ByteString (ByteString,take,drop,unpack)
 import qualified Data.ByteString.Base64 as B64
 import Data.Hashable (Hashable)
-import Data.Monoid ((<>))
 import Data.String (IsString(fromString))
 import Data.Store
 import Data.Time
@@ -112,7 +111,7 @@ newtype Identifier =
   deriving (Generic,Eq,Ord,Hashable)
 
 instance Show Identifier where
-  show = show . B64.encode . encode
+  show = show . B64.encodeBase64 . encode
 
 -- | IsIdentifier means that @a@ is isomorphic to Identifier, usually via newtype. This enables to use @genId :: IsIdentifier a => IO a@, declared below. It is required that not only is it isomorphic; it must respect the Store instance as well (you get this for free with a newtype anyway).
 class IsIdentifier a where

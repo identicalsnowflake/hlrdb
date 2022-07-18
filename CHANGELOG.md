@@ -1,3 +1,6 @@
+# 0.4.0.0
+- Updated hlrdb-core to 0.2.0.0, featuring revamped aggrevation via the @Q@ applicative, which should be more ergonomic than the old profunctor-based API while providing the same guarantees.
+
 # New in 0.3.2
 - Added `zstd`, which when used transparently applies zstd compression to the values stored at the given path.
 
